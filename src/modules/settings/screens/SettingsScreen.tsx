@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, Pressable, Alert } from 'react-native';
-import { Sun, Moon, Monitor, Bell, Target, Palette, FileDown, FileUp, Trash2, ChevronRight, Type, Sparkles } from 'lucide-react-native';
+import { Sun, Moon, Monitor, Bell, Target, Palette, FileDown, FileUp, Trash2, ChevronRight, Type, Sparkles, Clock } from 'lucide-react-native';
 import { cacheDirectory, writeAsStringAsync, readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -12,6 +12,7 @@ import { spacing, typography } from '../../../theme/tokens';
 import { useSettingsStore } from '../../../store/settingsStore';
 import { useProgressStore } from '../../../store/progressStore';
 import { resetDatabase, getDatabase } from '../../../database/db';
+import { requestNotificationPermissions, scheduleAllReminders } from '../../../services/reminderService';
 import type { ThemeMode } from '../../../theme/types';
 
 export function SettingsScreen() {
@@ -172,6 +173,46 @@ export function SettingsScreen() {
             label="Study Reminders"
             right={<ToggleSwitch value={settings.reminderEnabled} onToggle={() => settings.setReminderEnabled(!settings.reminderEnabled)} />}
           />
+          {settings.reminderEnabled && settings.reminderTimes.map((r, idx) => (
+            <SettingsRow
+              key={r.id}
+              icon={<Clock size={18} color={theme.colors.tertiaryText} />}
+              label={r.label}
+              value={`${String(r.hour).padStart(2, '0')}:${String(r.minute).padStart(2, '0')}`}
+              right={
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <Pressable
+                    onPress={() => {
+                      const newTimes = [...settings.reminderTimes];
+                      newTimes[idx] = { ...r, enabled: !r.enabled };
+                      settings.setReminderTimes(newTimes);
+                    }}
+                    style={[styles.dayToggle, { backgroundColor: r.enabled ? theme.colors.primary : theme.colors.border }]}
+                  >
+                    <Text style={[styles.dayToggleText, { color: r.enabled ? '#fff' : theme.colors.tertiaryText }]}>
+                      {r.enabled ? 'On' : 'Off'}
+                    </Text>
+                  </Pressable>
+                </View>
+              }
+            />
+          ))}
+          {settings.reminderEnabled && (
+            <PressableRow
+              icon={<Bell size={18} color={theme.colors.success} />}
+              label="Enable Notifications"
+              subtitle="Grant permission to receive reminders"
+              onPress={async () => {
+                const granted = await requestNotificationPermissions();
+                if (granted) {
+                  await scheduleAllReminders(settings.reminderTimes);
+                  Alert.alert('Notifications Enabled', 'You will receive study reminders at your scheduled times.');
+                } else {
+                  Alert.alert('Permission Denied', 'Enable notifications in your browser/device settings to receive reminders.');
+                }
+              }}
+            />
+          )}
         </SettingsSection>
 
         <SettingsSection title="Data">
@@ -358,5 +399,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     textAlign: 'center',
     marginTop: spacing.lg,
+  },
+  dayToggle: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 6,
+  },
+  dayToggleText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
   },
 });
