@@ -8,8 +8,20 @@
     "scheme": "prepstreak",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1e3a8a"
+    },
     "ios": {
       "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#1e3a8a"
+      },
+      "package": "com.md.rizwank431.prepstreak"
     },
     "web": {
       "bundler": "metro",
@@ -29,15 +41,6 @@
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "android": {
-      "package": "com.md.rizwank431.prepstreak"
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "e51cbf73-ec6a-4995-8fe5-8e44664eb256"
-      }
     }
   }
 }
