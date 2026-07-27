@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, Pressable, Alert } from 'react-native';
+import { StyleSheet, Text, View, Pressable, Alert, Linking } from 'react-native';
 import { Sun, Moon, Monitor, Bell, Target, Palette, FileDown, FileUp, Trash2, ChevronRight, Type, Sparkles, Clock } from 'lucide-react-native';
 import { cacheDirectory, writeAsStringAsync, readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -19,6 +19,7 @@ export function SettingsScreen() {
   const { theme, mode, setMode } = useTheme();
   const settings = useSettingsStore();
   const progress = useProgressStore();
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
 
   const handleExport = useCallback(async () => {
     try {
@@ -90,6 +91,20 @@ export function SettingsScreen() {
       ],
     );
   }, [settings, progress]);
+
+  const updateReminderTime = useCallback((reminderId: string, field: 'hour' | 'minute', delta: number) => {
+    const nextTimes = settings.reminderTimes.map((reminder) => {
+      if (reminder.id !== reminderId) return reminder;
+
+      const nextValue = field === 'hour'
+        ? (reminder.hour + delta + 24) % 24
+        : (reminder.minute + delta + 60) % 60;
+
+      return { ...reminder, [field]: nextValue };
+    });
+
+    settings.setReminderTimes(nextTimes);
+  }, [settings]);
 
   return (
     <>
@@ -174,28 +189,70 @@ export function SettingsScreen() {
             right={<ToggleSwitch value={settings.reminderEnabled} onToggle={() => settings.setReminderEnabled(!settings.reminderEnabled)} />}
           />
           {settings.reminderEnabled && settings.reminderTimes.map((r, idx) => (
-            <SettingsRow
-              key={r.id}
-              icon={<Clock size={18} color={theme.colors.tertiaryText} />}
-              label={r.label}
-              value={`${String(r.hour).padStart(2, '0')}:${String(r.minute).padStart(2, '0')}`}
-              right={
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                  <Pressable
-                    onPress={() => {
-                      const newTimes = [...settings.reminderTimes];
-                      newTimes[idx] = { ...r, enabled: !r.enabled };
-                      settings.setReminderTimes(newTimes);
-                    }}
-                    style={[styles.dayToggle, { backgroundColor: r.enabled ? theme.colors.primary : theme.colors.border }]}
-                  >
-                    <Text style={[styles.dayToggleText, { color: r.enabled ? '#fff' : theme.colors.tertiaryText }]}>
-                      {r.enabled ? 'On' : 'Off'}
-                    </Text>
-                  </Pressable>
+            <View key={r.id}>
+              <SettingsRow
+                icon={<Clock size={18} color={theme.colors.tertiaryText} />}
+                label={r.label}
+                right={
+                  <View style={styles.reminderActions}>
+                    <Pressable
+                      onPress={() => setEditingReminderId(editingReminderId === r.id ? null : r.id)}
+                      style={({ pressed }) => [
+                        styles.timeButton,
+                        {
+                          backgroundColor: pressed ? theme.colors.primary + '22' : theme.colors.primary + '12',
+                          borderColor: theme.colors.primary + '40',
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.timeButtonText, { color: theme.colors.primary }]}>
+                        {`${String(r.hour).padStart(2, '0')}:${String(r.minute).padStart(2, '0')}`}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        const newTimes = [...settings.reminderTimes];
+                        newTimes[idx] = { ...r, enabled: !r.enabled };
+                        settings.setReminderTimes(newTimes);
+                      }}
+                      style={[styles.dayToggle, { backgroundColor: r.enabled ? theme.colors.primary : theme.colors.border }]}
+                    >
+                      <Text style={[styles.dayToggleText, { color: r.enabled ? '#fff' : theme.colors.tertiaryText }]}>
+                        {r.enabled ? 'On' : 'Off'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                }
+              />
+              {editingReminderId === r.id && (
+                <View style={styles.timePickerRow}>
+                  <View style={styles.timePickerGroup}>
+                    <Text style={[styles.timePickerLabel, { color: theme.colors.secondaryText }]}>Hour</Text>
+                    <View style={[styles.stepper, { backgroundColor: theme.colors.border + '30' }]}>
+                      <Pressable onPress={() => updateReminderTime(r.id, 'hour', -1)} style={styles.stepperBtn}>
+                        <Text style={[styles.stepperText, { color: theme.colors.primaryText }]}>-</Text>
+                      </Pressable>
+                      <Text style={[styles.stepperValue, { color: theme.colors.primaryText }]}>{String(r.hour).padStart(2, '0')}</Text>
+                      <Pressable onPress={() => updateReminderTime(r.id, 'hour', 1)} style={styles.stepperBtn}>
+                        <Text style={[styles.stepperText, { color: theme.colors.primaryText }]}>+</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View style={styles.timePickerGroup}>
+                    <Text style={[styles.timePickerLabel, { color: theme.colors.secondaryText }]}>Minute</Text>
+                    <View style={[styles.stepper, { backgroundColor: theme.colors.border + '30' }]}>
+                      <Pressable onPress={() => updateReminderTime(r.id, 'minute', -5)} style={styles.stepperBtn}>
+                        <Text style={[styles.stepperText, { color: theme.colors.primaryText }]}>-</Text>
+                      </Pressable>
+                      <Text style={[styles.stepperValue, { color: theme.colors.primaryText }]}>{String(r.minute).padStart(2, '0')}</Text>
+                      <Pressable onPress={() => updateReminderTime(r.id, 'minute', 5)} style={styles.stepperBtn}>
+                        <Text style={[styles.stepperText, { color: theme.colors.primaryText }]}>+</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 </View>
-              }
-            />
+              )}
+            </View>
           ))}
           {settings.reminderEnabled && (
             <PressableRow
@@ -221,9 +278,25 @@ export function SettingsScreen() {
           <PressableRow icon={<Trash2 size={18} color={theme.colors.error} />} label="Reset Progress" subtitle="Delete all data" onPress={handleReset} danger />
         </SettingsSection>
 
-        <Text style={[styles.version, { color: theme.colors.tertiaryText }]}>
-          PrepStreak v1.0.0
-        </Text>
+        <View style={{ alignItems: 'center', marginTop: spacing.lg }}>
+          <Text style={[styles.version, { color: theme.colors.tertiaryText }]}>
+            PrepStreak v1.0.0
+          </Text>
+
+          <Pressable
+            onPress={() => Linking.openURL('https://rizwank123.github.io')}
+            style={({ pressed }) => [
+              styles.devButton,
+              {
+                backgroundColor: pressed ? theme.colors.primary : theme.colors.primary + '12',
+              },
+            ]}
+          >
+            <Text style={[styles.devButtonText, { color: theme.colors.primary }]}><Text style={[styles.version, { color: theme.colors.tertiaryText }]}>
+              Made with ❤️ by
+            </Text> Mohammad Rizwan</Text>
+          </Pressable>
+        </View>
       </ScreenContainer>
     </>
   );
@@ -407,6 +480,46 @@ const styles = StyleSheet.create({
   },
   dayToggleText: {
     fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  reminderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  timeButton: {
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  timeButtonText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  timePickerRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  timePickerGroup: {
+    flex: 1,
+    gap: 6,
+  },
+  timePickerLabel: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  devButton: {
+    marginTop: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 999,
+  },
+  devButtonText: {
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
   },
 });

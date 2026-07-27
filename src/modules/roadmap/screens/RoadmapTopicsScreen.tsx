@@ -46,7 +46,7 @@ export function RoadmapTopicsScreen({ moduleId, roadmapRoute }: Props) {
   }, [moduleId]);
 
   const handlePressTopic = useCallback((topic: TopicWithProgress) => {
-    router.push(`/${roadmapRoute}/${topic.id}`);
+    router.push(`/${roadmapRoute}/${topic.id}` as never);
   }, [router, roadmapRoute]);
 
   if (loading) {
